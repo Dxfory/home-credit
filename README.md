@@ -1,7 +1,5 @@
 # Home Credit — Inference Pipelines (codev1.py & codev2.py)
 
-[![CI](https://github.com/Dxfory/home-credit/actions/workflows/ci.yml/badge.svg)](https://github.com/Dxfory/home-credit/actions/workflows/ci.yml)
-
 **Inference pipeline for the team gold, 9th of 3,856. `codev2.py` writes the baseline submission. `codev1.py` blends it 50/50 and applies the column-376 stability adjustment. Model weights and parquet files come from the Kaggle competition inputs.**
 
 Team gold, Home Credit — Credit Risk Model Stability, certificate dated 2024-05-28, issued to **X. Dxfory**. The public pipeline assembles depth-0/1/2 features in Polars, runs LightGBM and CatBoost voting, and applies a 50/50 blend plus a stability adjustment. Time-aware grouped cross-validation and the hand-built features are the training design behind that gold-medal inference stack.
