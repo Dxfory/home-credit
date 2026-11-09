@@ -1,32 +1,35 @@
 # Home Credit — Inference Pipelines (codev1.py & codev2.py)
 
-Inference pipeline from our 2024 Kaggle **Home Credit — Credit Risk Model Stability** entry — **team gold medal, 9th of 3,856 teams (top 0.23%)**. Polars feature assembly over depth-0/1/2 tables, LightGBM + CatBoost voting, and a post-blend stability rule. Competition data and model weights are distributed via Kaggle.
+[![CI](https://github.com/Dxfory/home-credit/actions/workflows/ci.yml/badge.svg)](https://github.com/Dxfory/home-credit/actions/workflows/ci.yml)
 
-This README explains the purpose, inputs/outputs, dependencies, and execution steps for the two inference scripts:
+**Inference pipeline for the team gold, 9th of 3,856. `codev2.py` writes the baseline submission. `codev1.py` blends it 50/50 and applies the column-376 stability adjustment. Model weights and parquet files come from the Kaggle competition inputs.**
 
-- **`codev1.py`** — Polars-based feature assembly + hybrid (CatBoost + LightGBM) voting inference with **post‑blend rule**.
-- **`codev2.py`** — A leaner, fully self‑contained feature assembly + saved model loader producing a **baseline submission**; can feed into `codev1.py` for ensembling.
+Team gold, Home Credit — Credit Risk Model Stability, certificate dated 2024-05-28, issued to **X. Dxfory**. The public pipeline assembles depth-0/1/2 features in Polars, runs LightGBM and CatBoost voting, and applies a 50/50 blend plus a stability adjustment. Time-aware grouped cross-validation and the hand-built features are the training design behind that gold-medal inference stack.
+
+Scripts live in `home_credit/`. `home_credit/codev1.py` reads parquet from `../input/home-credit-credit-risk-model-stability`. `home_credit/codev2.py` reads parquet from `/kaggle/input/home-credit-credit-risk-model-stability`. On Kaggle, run from the working directory that matches those roots. CI runs `python -m py_compile` on both scripts. Competition parquet and model weights stay with the Kaggle competition inputs.
 
 ---
 
 ## Quick Start
 
-1. Place Kaggle competition data under:
-   - `/kaggle/input/home-credit-credit-risk-model-stability/parquet_files/test/…`
+1. Place Kaggle competition data so each script's `ROOT` resolves:
+   - `codev2.py`: `/kaggle/input/home-credit-credit-risk-model-stability/parquet_files/test/…`
+   - `codev1.py`: `../input/home-credit-credit-risk-model-stability/parquet_files/test/…` relative to the working directory
 2. Models:
    - For `codev1.py`: a pickle at `/kaggle/input/newmodel1/newmodel.pkl` containing `[cat_cols, fitted_models_cat, fitted_models_lgb]`.
    - For `codev2.py`: joblib bundles under `/kaggle/input/homecredit-models-public/other/{lgb,cat}/1/…`.
-3. Run:
+3. Run, from the directory that matches those roots:
    ```bash
-   python codev2.py   # produces submission_codev2.csv
-   python codev1.py   # blends with submission_codev2.csv and writes submission.csv
+   python home_credit/codev2.py   # produces submission_codev2.csv
+   python home_credit/codev1.py   # blends with submission_codev2.csv and writes submission.csv
    ```
 
 ---
 
 ## Data Layout
 
-Both scripts expect the official parquet hierarchy (test side) under `ROOT = "/kaggle/input/home-credit-credit-risk-model-stability"`, notably:
+`codev1.py` sets `ROOT = Path("../input/home-credit-credit-risk-model-stability")`. `codev2.py` sets `ROOT = "/kaggle/input/home-credit-credit-risk-model-stability"`. Both expect the official parquet hierarchy (test side), notably:
+
 - `parquet_files/test/test_base.parquet`
 - Feature “depth” tables (`*_0.parquet`, `*_1_*.parquet`, `*_2*.parquet`) which are aggregated and joined by `case_id`.
 
@@ -48,9 +51,10 @@ Both scripts expect the official parquet hierarchy (test side) under `ROOT = "/k
   - Parses `riskassesment_302T` ranges into `[rng, mean]` numeric features when present.
   - Converts date columns to day offsets relative to `date_decision`; extracts `year`, `day`, and renames `MONTH→month`, `WEEK_NUM→week_num`.
 - **Model loading**: unpickles `[cat_cols, fitted_models_cat, fitted_models_lgb]`, converts categorical columns for Cat, aligns to LGB `feature_name_`.
-- **Ensemble & post‑blend**:
-  - Reads `submission_codev2.csv`, **50/50 blend** with current model’s probability.
-  - Applies a **heuristic down‑adjustment** (-0.025, clipped at 0) to a subset defined by a threshold on a specific feature column (`X_test.columns[376]`). Outputs final `submission.csv`.
+- **One predict path, then ensemble & post‑blend**:
+  - Loads `newmodel.pkl`, aligns columns to `feature_name_`, and scores once.
+  - Reads `submission_codev2.csv`, **50/50 blend** with the current model’s probability.
+  - Applies a **stability adjustment** (−0.025, floored at 0) on the subset defined by **column 376** of that aligned frame (`X_test.columns[376]`). Writes `submission.csv`.
 
 ---
 
@@ -65,56 +69,57 @@ Both scripts expect the official parquet hierarchy (test side) under `ROOT = "/k
 
 ## Dependencies
 
-- Python 3.10+ (Kaggle Runtime OK)
-- Core: `polars`, `pandas`, `numpy`, `lightgbm`, `catboost` (only in `codev1.py`), `joblib` (only in `codev2.py`)
-- For speed & memory: both scripts implement type down‑casting / memory trimming (Polars in `codev1.py`, Pandas in `codev2.py`).
+- Python 3.10+ (Kaggle runtime)
+- `requirements.txt`: `polars`, `pandas`, `numpy`, `lightgbm`, `catboost`, `joblib`, `scikit-learn`
+- `codev1.py` also imports `IPython.display`, which the Kaggle runtime provides
+- Both scripts implement type down‑casting / memory trimming (Polars in `codev1.py`, Pandas in `codev2.py`)
 
 ---
 
 ## How to Run (recommended order)
 
-1) **Generate a base submission**  
+1) **Generate a base submission**
 ```bash
-python codev2.py
-# => writes submission_codev2.csv in working dir
+python home_credit/codev2.py
+# => writes submission_codev2.csv in the working directory
 ```
 
-2) **Blend with a stronger stack**  
+2) **Blend with the codev1 stack**
 ```bash
-python codev1.py
+python home_credit/codev1.py
 # => reads submission_codev2.csv and writes submission.csv
 ```
 
-> Tip: If you want to run only `codev1.py` (without the 50/50 blend), remove the lines that read `submission_codev2.csv` and the blend/threshold rule.
+The blend in `codev1.py` reads `submission_codev2.csv`, so the baseline file is present before that step. Column 376 is the stability adjustment on the blended score.
 
 ---
 
 ## Implementation Notes & Gotchas
 
-- **Feature alignment**: `codev1.py` explicitly selects `X_test = X_test[fitted_models_lgb[0].feature_name_]` to match trained LGB features; ensure your pickle’s models expose `feature_name_`.
-- **Categoricals**: Before CatBoost predictions, cast `X[cat_cols]` to `str` (or `category`) as done in both scripts. Mismatched dtypes cause silent degradation.
-- **Date arithmetic**: Date columns ending with `D` are converted to **day deltas** from `date_decision`; verify your upstream parquet schema keeps `date_decision` present in base tables.
-- **Heuristic rule (codev1)**: The down‑adjustment by `-0.025` for a subset defined by column index `376` is dataset‑specific; re‑validate this threshold on CV or OOF to avoid leaderboard overfit.
+- **Feature alignment**: `codev1.py` explicitly selects `X_test = X_test[fitted_models_lgb[0].feature_name_]` to match trained LGB features; the pickle’s models expose `feature_name_`.
+- **Categoricals**: Before CatBoost predictions, cast `X[cat_cols]` to `str` (or `category`) as done in both scripts. Matching dtypes keeps the vote on the trained columns.
+- **Date arithmetic**: Date columns ending with `D` are converted to **day deltas** from `date_decision`; the upstream parquet schema keeps `date_decision` present in base tables.
+- **Stability adjustment (codev1)**: The −0.025 adjustment, floored at 0, applies to the subset defined by column index `376` after alignment to `feature_name_`. That index is the competition feature layout behind the team-gold submission.
 
 ---
 
 ## Extending the Pipelines
 
-- Add/remove aggregation expressions in `Aggregator` to tune feature richness vs. RAM/CPU.
+- Add or remove aggregation expressions in `Aggregator` to tune feature richness against RAM and CPU.
 - Tighten column filters (null‑ratio / cardinality) and memory shims for large‑RAM instances.
-- Swap the final **mean** voting with weighted voting or rank‑averaging if model scales differ.
+- Swap the final **mean** voting with weighted voting or rank‑averaging when model scales differ.
 
 ---
 
 ## Repro Checklist
 
-- [ ] Parquet test files present and readable
-- [ ] Model artifacts available in expected paths
-- [ ] `submission_codev2.csv` successfully produced before running `codev1.py`
-- [ ] Same Python/package versions as training (LightGBM/CatBoost) to ensure `feature_name_` compatibility
+- [ ] Parquet test files present and readable at the script `ROOT`
+- [ ] Model artifacts available in the expected paths
+- [ ] `submission_codev2.csv` written before `codev1.py`
+- [ ] Same Python and package versions as training (LightGBM/CatBoost) so `feature_name_` matches
 
 ---
 
-*Maintainers:* Dx & team  
+*Maintainers:* Dx & team
 
 License: MIT

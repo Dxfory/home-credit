@@ -1,5 +1,4 @@
-%%writefile
-codev2.py
+"""Team-gold baseline inference. Writes submission_codev2.csv for the 50/50 blend in codev1.py."""
 import joblib
 from pathlib import Path
 import gc

@@ -1,4 +1,4 @@
-# %%writefile codev1.py
+"""Team-gold inference: one predict path, 50/50 blend with codev2, column-376 stability adjustment."""
 import gc
 import lightgbm as lgb
 import numpy as np
@@ -12,7 +12,6 @@ from IPython.display import display
 from pathlib import Path
 from sklearn.base import BaseEstimator, ClassifierMixin
 from sklearn.metrics import roc_auc_score
-from sklearn.model_selection import StratifiedGroupKFold
 from typing import Any
 
 warnings.filterwarnings("ignore")
@@ -665,13 +664,10 @@ model = VotingModel(fitted_models_cat + fitted_models_lgb)
 X_test: pd.DataFrame = df_test.drop(columns=["week_num"]).set_index("case_id")
 X_test = X_test[fitted_models_lgb[0].feature_name_]
 y_pred = pd.Series(model.predict_proba(X_test)[:, 1], index=X_test.index)
-model = VotingModel(fitted_models_cat + fitted_models_lgb)
-X_test: pd.DataFrame = df_test.drop(columns=["week_num"]).set_index("case_id")
-X_test = X_test[fitted_models_lgb[0].feature_name_]
-y_pred = pd.Series(model.predict_proba(X_test)[:, 1], index=X_test.index)
 
 dffff = pd.read_csv("submission_codev2.csv").set_index("case_id")
 df_subm["score"] = y_pred * 0.5 + dffff.score * 0.5
+# Stability adjustment: column 376 of the aligned feature frame, −0.025, floored at 0.
 col = X_test.columns.tolist()[376]
 condition = X_test[col] < (X_test[col].max() - X_test[col].min()) / 2 + X_test[col].min()
 df_subm.loc[condition, 'score'] = (df_subm.loc[condition, 'score'] - 0.025).clip(0)
