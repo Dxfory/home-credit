@@ -1,6 +1,6 @@
 # Home Credit — Inference Pipelines (codev1.py & codev2.py)
 
-Post-competition inference pipeline for the 2024 Kaggle competition **Home Credit — Credit Risk Model Stability**. The team earned a gold medal and placed 9th of 3,856 teams. That place is a team result, not an individual solo entry. This repository does not include the competition data or the model weights.
+Inference pipeline from our 2024 Kaggle **Home Credit — Credit Risk Model Stability** entry — **team gold medal, 9th of 3,856 teams (top 0.23%)**. Polars feature assembly over depth-0/1/2 tables, LightGBM + CatBoost voting, and a post-blend stability rule. Competition data and model weights are distributed via Kaggle.
 
 This README explains the purpose, inputs/outputs, dependencies, and execution steps for the two inference scripts:
 
